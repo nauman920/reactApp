@@ -1,0 +1,54 @@
+name: Build on DockerHub and Deploy to AWS
+on:
+  push:
+    branches:
+      - main
+env:
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  AWS_PRIVATE_KEY: ${{ secrets.AWS_PRIVATE_KEY }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: ./
+          push: true
+          dockerfile: ./Dockerfile
+          tags: nauman920/react-app:1.1
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Login to Docker Hub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ env.DOCKERHUB_USERNAME }}
+        password: ${{ env.DOCKERHUB_TOKEN }}
+    - name: Set permissions for private key
+      run: |
+        echo "${{ env.AWS_PRIVATE_KEY }}" > docker.pem
+        chmod 600 docker.pem
+    - name: Pull Docker image
+      run: |
+        ssh -i "docker.pem" ubuntu@ec2-16-171-11-179.eu-north-1.compute.amazonaws.com 'sudo docker pull nauman920/react-app:1.1'
+    - name: Stop running container
+      run: |
+        ssh -i "docker.pem" ubuntu@ec2-16-171-11-179.eu-north-1.compute.amazonaws.com 'sudo docker stop react-app || true'
+        ssh -i "docker.pem" ubuntu@ec2-16-171-11-179.eu-north-1.compute.amazonaws.com rm react-app || true'
+    - name: Run new container
+      run: |
+        ssh -i "docker.pem" ubuntu@ec2-16-171-11-179.eu-north-1.compute.amazonaws.com 'sudo docker run -d --name react-app -p 80:3000 nauman920/react-app:1.1'
