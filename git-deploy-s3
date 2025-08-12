@@ -1,0 +1,6 @@
+#!/bin/bash
+
+
+mkdir reactapp
+cd reactapp
+git pull git@github.com:nauman920/reactApp.git
